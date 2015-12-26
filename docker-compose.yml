@@ -1,8 +1,5 @@
 runner:
   build: .
-  ports:
-    - "25565:25565"
-    - "8080:8080"
   tty: true
   stdin_open: true
-  name: mc
+  name: tg-cli
