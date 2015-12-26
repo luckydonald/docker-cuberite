@@ -1,46 +1,49 @@
 
 FROM debian:latest
-#FROM buildpack-deps:jessie
-  # to much useless stuff inside,
-  # and is also FROM debian:latest
-#FROM python:3
-  # A user can add this later. If wanted.
-
-ENV TG_USER telegram
-ENV TG_HOME /home/$TG_USER
-ENV COMMAND python
-ENV TG_CLI telegram-cli
+# Minecraft
+ENV C_USER cuberite
+ENV C_HOME /home/$C_USER
 
 # set user/group IDs
-RUN groupadd -r "$TG_USER" --gid=999 && useradd -r -g "$TG_USER" --uid=999 "$TG_USER"
+RUN groupadd -r "$C_USER" --gid=999 && useradd -r -g "$C_USER" --uid=999 "$C_USER"
 
 
 # Base
-RUN apt-get update
-RUN DEBIAN_FRONTEND=noninteractive && apt-get install --no-install-recommends --yes \
-		ca-certificates make git gcc libconfig-dev libevent-dev libjansson-dev libreadline-dev libssl-dev  \
+RUN apt-get update \
+  && DEBIAN_FRONTEND=noninteractive \
+	&& apt-get install --no-install-recommends --yes \
+		ca-certificates curl nano gcc g++ make cmake git\
 	&& apt-get clean \
-	&& rm -rf /var/lib/apt/lists \
-  && echo "[http]\n\tsslVerify = true\n\tslCAinfo = /etc/ssl/certs/ca-certificates.crt\n" >> ~/.gitconfig
-  # the install ca-certificates and adding "slCAinfo = /etc/ssl/certs/ca-certificates.crt" to .gitconfig
-  # fixed tg cloning via git with the error:
-  ## fatal: unable to access 'https://github.com/vysheng/tg.git/': Problem with the SSL CA cert (path? access rights?)
+	&& rm -rf /var/lib/apt/lists/
 
-RUN mkdir "$TG_HOME"
+# Gosu
+RUN curl -o /usr/local/sbin/gosu -sSL "https://github.com/tianon/gosu/releases/download/1.7/gosu-$(dpkg --print-architecture)" \
+	&& chmod +x /usr/local/sbin/gosu
 
-RUN git clone https://github.com/vysheng/tg.git "$TG_HOME"/tg
-WORKDIR "$TG_HOME"/tg
-RUN git submodule update --init --recursive
-RUN ./configure --disable-liblua --disable-python && make
-ENV PATH "$TG_HOME"/tg/bin/:$PATH
-ENV TG_PUBKEY "$TG_HOME"/tg/tg-server.pub
-ENV KILLCACHE "YES PLZ! NAO!" # I just comment this out some time to trigger a rebuild from here on.
+# Cuberite
+RUN mkdir "$C_HOME" \
+	&& cd "$C_HOME" \
+	&& git clone https://github.com/cuberite/cuberite.git \
+  && cd cuberite \
+  && git submodule update --init \
+  && pwd
+
+RUN pwd
+# Build
+RUN  cd "$C_HOME" && cd cuberite && mkdir build-cuberite && cd build-cuberite \
+  && cmake .. -DCMAKE_BUILD_TYPE=Release \
+  && make -j`nproc` \
+  && cd ../Server
+
+RUN mv "$C_HOME"/cuberite/Server "$C_HOME"/Server
+
+COPY configs/ "$C_HOME"/Server
 COPY scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-ENV CLI_DATA $TG_HOME/.telegram-cli
+
 ENTRYPOINT ["/entrypoint.sh"]
 
-CMD ["bash"]
+CMD ["Cuberite"]
 
-VOLUME $TG_HOME
-VOLUME $CLI_DATA
+EXPOSE 25565 8080
+VOLUME $C_HOME
