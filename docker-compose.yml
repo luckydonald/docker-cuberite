@@ -1,5 +1,0 @@
-runner:
-  build: .
-  tty: true
-  stdin_open: true
-  name: tg-cli
